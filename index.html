@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Playa Manta">
+<meta name="theme-color" content="#0b6e8a">
+<title>Playa Manta</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,Arial,sans-serif;background:#eaf6f9;color:#12303a;padding:env(safe-area-inset-top) 14px 30px}
+h1{font-size:22px;margin:16px 0 4px}
+.sub{font-size:13px;color:#4a6b75;margin-bottom:12px}
+select{width:100%;padding:12px;font-size:16px;border-radius:12px;border:1px solid #b8d8e0;background:#fff;margin-bottom:12px}
+.card{background:#fff;border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+.best{font-size:18px;font-weight:700}
+.tag{display:inline-block;padding:3px 10px;border-radius:20px;color:#fff;font-size:12px;font-weight:700}
+.good{background:#1f9d55}.mid{background:#e0a100}.bad{background:#d64545}
+.row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid #eef3f5;font-size:14px}
+.row:last-child{border:0}
+.det{font-size:11px;color:#5d7882}
+.warn{background:#fff4d6;border-radius:12px;padding:10px;font-size:13px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<h1>🏖️ Playa Manta</h1>
+<div class="sub" id="fecha">Cargando...</div>
+<select id="playa"></select>
+<div class="card" id="mejor">Calculando...</div>
+<div class="warn" id="uv" style="display:none"></div>
+<div class="card" id="horas"></div>
+
+<script>
+const PLAYAS={
+  "Playa Murciélago":{lat:-0.9435,lon:-80.7440},
+  "Barbasquillo":{lat:-0.9360,lon:-80.7600},
+  "San Mateo":{lat:-0.9830,lon:-80.8070}
+};
+const sel=document.getElementById('playa');
+Object.keys(PLAYAS).forEach(n=>{const o=document.createElement('option');o.textContent=n;sel.appendChild(o)});
+sel.onchange=cargar;
+
+function puntaje(h){
+  let p=100;
+  p-=Math.min(50,h.lluvia*25);              // lluvia mm/h
+  p-=h.nubes>70?15:h.nubes>40?6:0;          // nubosidad %
+  if(h.temp<23)p-=(23-h.temp)*5;            // frío
+  if(h.temp>33)p-=(h.temp-33)*5;            // calor extremo
+  if(h.viento>25)p-=Math.min(25,(h.viento-25)*1.5); // viento km/h
+  if(h.ola>1.5)p-=Math.min(30,(h.ola-1.5)*20);      // oleaje m
+  if(h.marea!==null&&h.marea>1.9)p-=8;      // marea muy alta
+  return Math.max(0,Math.round(p));
+}
+function etiqueta(p){return p>=70?['Buen momento','good']:p>=45?['Regular','mid']:['Mejor no ir','bad']}
+
+async function cargar(){
+  const {lat,lon}=PLAYAS[sel.value];
+  const w=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,precipitation,cloud_cover,wind_speed_10m,uv_index&timezone=America%2FGuayaquil&forecast_days=1`).then(r=>r.json());
+  const m=await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&hourly=wave_height,sea_level_height_msl&timezone=America%2FGuayaquil&forecast_days=1`).then(r=>r.json()).catch(()=>null);
+  const horas=[];
+  for(let i=0;i<24;i++){
+    const hr=+w.hourly.time[i].slice(11,13);
+    if(hr<6||hr>17)continue;
+    horas.push({hr,temp:w.hourly.temperature_2m[i],lluvia:w.hourly.precipitation[i],nubes:w.hourly.cloud_cover[i],viento:w.hourly.wind_speed_10m[i],uv:w.hourly.uv_index[i],
+      ola:m&&m.hourly?m.hourly.wave_height[i]??0:0,marea:m&&m.hourly&&m.hourly.sea_level_height_msl?m.hourly.sea_level_height_msl[i]:null});
+  }
+  horas.forEach(h=>h.p=puntaje(h));
+  document.getElementById('fecha').textContent=new Date().toLocaleDateString('es-EC',{weekday:'long',day:'numeric',month:'long'});
+
+  // mejor ventana de 2 horas seguidas
+  let mejor=null;
+  for(let i=0;i<horas.length-1;i++){const s=(horas[i].p+horas[i+1].p)/2;if(!mejor||s>mejor.s)mejor={s,a:horas[i].hr,b:horas[i+1].hr+1}}
+  const [txt,cls]=etiqueta(mejor?mejor.s:0);
+  document.getElementById('mejor').innerHTML=mejor?`<div class="det">Mejor ventana de hoy</div><div class="best">${mejor.a}:00 a ${mejor.b}:00</div><span class="tag ${cls}">${txt} · ${Math.round(mejor.s)}/100</span>`:'Sin datos';
+
+  const uvMax=Math.max(...horas.map(h=>h.uv));
+  const uvEl=document.getElementById('uv');
+  if(uvMax>=8){uvEl.style.display='block';uvEl.textContent=`☀️ UV máximo ${uvMax.toFixed(0)}: usa protector solar y evita el mediodía.`}else uvEl.style.display='none';
+
+  document.getElementById('horas').innerHTML=horas.map(h=>{const [t,c]=etiqueta(h.p);
+    return `<div class="row"><div><b>${h.hr}:00</b><div class="det">${h.temp.toFixed(0)}°C · viento ${h.viento.toFixed(0)} km/h · olas ${h.ola.toFixed(1)} m · lluvia ${h.lluvia} mm</div></div><span class="tag ${c}">${t}</span></div>`}).join('');
+}
+cargar().catch(()=>{document.getElementById('mejor').textContent='No se pudo cargar. Revisa tu conexión.'});
+</script>
+</body>
+</html>
