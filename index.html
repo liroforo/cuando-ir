@@ -617,30 +617,33 @@ iniciarInterfaz();
 arrancar(false);
 </script>
 <style>
-body{padding-bottom:calc(env(safe-area-inset-bottom) + 70px)}
-#btnInstalar{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 14px);transform:translateX(-50%);z-index:50;padding:10px 16px;border:1px solid #c4dde1;border-radius:20px;background:#e1eff1;color:#25525c;font-size:14px;font-family:inherit}
-#ayudaInstalar{position:fixed;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom) + 14px);z-index:60;max-width:420px;margin:0 auto;padding:14px;border:1px solid #e8eff1;border-radius:16px;background:#fff;color:#2b3b40;font-size:14px;line-height:1.5;box-shadow:0 4px 18px rgba(0,0,0,.12)}
-#ayudaInstalar button{margin-top:8px;padding:6px 12px;border:1px solid #dfe9eb;border-radius:12px;background:#fff;color:#44585e;font-family:inherit}
-</style>
-<button id="btnInstalar" hidden>Agregar a pantalla de inicio</button>
-<div id="ayudaInstalar" hidden>
-  <b>Agrégala como app</b><br>
-  1. Toca el botón Compartir de Safari (el cuadrado con la flecha hacia arriba).<br>
-  2. Baja y elige Agregar a pantalla de inicio.<br>
-  3. Toca Agregar.<br>
-  <button id="cerrarInstalar">Entendido</button>
+</script>
+<div id="instalar" hidden style="margin:14px 0 0;font-size:12px;color:#9aabb0;text-align:center">
+  <a href="#" id="instalarAbrir" style="color:#7d9096;text-decoration:none">Agregar a pantalla de inicio</a>
+  &nbsp;·&nbsp;
+  <a href="#" id="instalarCerrar" style="color:#9aabb0;text-decoration:none">No mostrar más</a>
+  <div id="instalarPasos" hidden style="margin-top:8px;padding:10px 12px;background:#fff;border:1px solid #e8eff1;border-radius:12px;color:#44585e;text-align:left;line-height:1.5">
+    1. Toca Compartir en Safari (el cuadrado con la flecha hacia arriba).<br>
+    2. Baja y elige Agregar a pantalla de inicio.<br>
+    3. Toca Agregar.
+  </div>
 </div>
 <script>
 (function(){
-  var ua = navigator.userAgent;
-  var esIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var instalada = window.navigator.standalone === true;
-  var btn = document.getElementById('btnInstalar');
-  var ayuda = document.getElementById('ayudaInstalar');
-  if(!esIOS || instalada) return;
-  btn.hidden = false;
-  btn.onclick = function(){ ayuda.hidden = false; btn.hidden = true; };
-  document.getElementById('cerrarInstalar').onclick = function(){ ayuda.hidden = true; btn.hidden = false; };
+  var oculto = false;
+  try{ oculto = localStorage.getItem('cuandoir_instalar_oculto') === '1'; }catch(e){}
+  if(!esIOS || instalada || oculto) return;
+  var caja = document.getElementById('instalar');
+  var pasos = document.getElementById('instalarPasos');
+  caja.hidden = false;
+  document.getElementById('instalarAbrir').onclick = function(e){ e.preventDefault(); pasos.hidden = !pasos.hidden; };
+  document.getElementById('instalarCerrar').onclick = function(e){
+    e.preventDefault();
+    caja.hidden = true;
+    try{ localStorage.setItem('cuandoir_instalar_oculto', '1'); }catch(err){}
+  };
 })();
 </script>
 </body>
